@@ -24,6 +24,16 @@ cargo run
 3. Runtime: Rust (или Docker). Build: `cargo build --release`, Start: `./target/release/kundoluk-web`.
 4. Render выдаст URL вида `https://kundoluk-web.onrender.com`.
 
+## Прокси (важно)
+Бэкенд `kundoluk.edu.gov.kg` отвечает только на IP из Кыргызстана. Если сервер
+развёрнут за пределами KG, задайте переменную `KUNDOLUK_PROXY` (или `HTTPS_PROXY`)
+с адресом HTTP/SOCKS5-прокси с кыргызским выходом:
+```
+KUNDOLUK_PROXY=http://USER:PASS@proxy.example.com:PORT
+```
+Проверить: `GET /api/ip` (должен показать KG-адрес) и `GET /api/test-upstream`
+(должен вернуть 200).
+
 ## Примечание
 Это неофициальный клиент. Использование стороннего клиента может нарушать
 условия использования сервиса; входите только под своей учётной записью.
