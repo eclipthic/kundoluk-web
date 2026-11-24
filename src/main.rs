@@ -24,9 +24,24 @@ async fn main() {
     let state = AppState {
         client: reqwest::Client::builder()
             .user_agent("Dart/3.5 (dart:io)")
+            .timeout(std::time::Duration::from_secs(15))
             .build()
             .expect("http client"),
     };
+
+    if let Ok(base) = std::env::var("RENDER_EXTERNAL_URL") {
+        let client = state.client.clone();
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(std::time::Duration::from_secs(40)).await;
+                let url = format!("{}/health", base.trim_end_matches('/'));
+                match client.get(&url).send().await {
+                    Ok(r) => tracing::info!("keep-alive ping {} -> {}", url, r.status()),
+                    Err(e) => tracing::warn!("keep-alive ping failed: {}", e),
+                }
+            }
+        });
+    }
 
     let proxy_router = Router::new()
         .fallback(proxy)
@@ -34,6 +49,8 @@ async fn main() {
 
     let app = Router::new()
         .route("/", get(serve_index))
+        .route("/health", get(health))
+        .route("/api/test-upstream", get(test_upstream))
         .route("/api/login/parent", post(login_parent))
         .route("/api/login/student", post(login_student))
         .nest("/api/p", proxy_router)
@@ -53,6 +70,22 @@ async fn main() {
 
 async fn serve_index() -> Html<&'static str> {
     Html(include_str!("../static/index.html"))
+}
+
+async fn health() -> &'static str {
+    "ok"
+}
+
+async fn test_upstream(State(state): State<AppState>) -> Response {
+    let url = "https://kundoluk.edu.gov.kg/api/parent/student/list";
+    match state.client.get(url).send().await {
+        Ok(resp) => {
+            let status = resp.status().as_u16();
+            let body = resp.text().await.unwrap_or_default();
+            (StatusCode::OK, format!("upstream status={} body={}", status, &body[..body.len().min(300)])).into_response()
+        }
+        Err(e) => (StatusCode::BAD_GATEWAY, format!("upstream error: {}", e)).into_response(),
+    }
 }
 
 async fn login_parent(State(state): State<AppState>, body: Bytes) -> Response {
