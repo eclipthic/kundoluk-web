@@ -77,7 +77,7 @@ async fn health() -> &'static str {
 }
 
 async fn test_upstream(State(state): State<AppState>) -> Response {
-    let url = "http://kundoluk.edu.gov.kg";
+    let url = "https://httpbin.org/get";
     match state.client.get(url).timeout(std::time::Duration::from_secs(8)).send().await {
         Ok(resp) => {
             let status = resp.status().as_u16();
