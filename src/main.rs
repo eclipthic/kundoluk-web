@@ -21,16 +21,31 @@ async fn main() {
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
 
+    let mut builder = reqwest::Client::builder()
+        .user_agent("Dart/3.5 (dart:io)")
+        .timeout(std::time::Duration::from_secs(15));
+
+    let proxy_url = std::env::var("KUNDOLUK_PROXY")
+        .or_else(|_| std::env::var("HTTPS_PROXY"))
+        .or_else(|_| std::env::var("https_proxy"))
+        .or_else(|_| std::env::var("ALL_PROXY"))
+        .ok();
+    if let Some(ref u) = proxy_url {
+        match reqwest::Proxy::all(u) {
+            Ok(px) => {
+                tracing::info!("using upstream proxy");
+                builder = builder.proxy(px);
+            }
+            Err(e) => tracing::warn!("invalid proxy URL: {}", e),
+        }
+    }
+
     let state = AppState {
-        client: reqwest::Client::builder()
-            .user_agent("Dart/3.5 (dart:io)")
-            .timeout(std::time::Duration::from_secs(15))
-            .build()
-            .expect("http client"),
+        client: builder.build().expect("http client"),
     };
 
     if let Ok(base) = std::env::var("RENDER_EXTERNAL_URL") {
-        let client = state.client.clone();
+        let client = reqwest::Client::new();
         tokio::spawn(async move {
             loop {
                 tokio::time::sleep(std::time::Duration::from_secs(40)).await;
@@ -50,6 +65,7 @@ async fn main() {
     let app = Router::new()
         .route("/", get(serve_index))
         .route("/health", get(health))
+        .route("/api/ip", get(show_ip))
         .route("/api/test-upstream", get(test_upstream))
         .route("/api/login/parent", post(login_parent))
         .route("/api/login/student", post(login_student))
@@ -74,6 +90,16 @@ async fn serve_index() -> Html<&'static str> {
 
 async fn health() -> &'static str {
     "ok"
+}
+
+async fn show_ip(State(state): State<AppState>) -> Response {
+    match state.client.get("https://httpbin.org/ip").timeout(std::time::Duration::from_secs(10)).send().await {
+        Ok(r) => {
+            let body = r.text().await.unwrap_or_default();
+            (StatusCode::OK, body).into_response()
+        }
+        Err(e) => (StatusCode::BAD_GATEWAY, e.to_string()).into_response(),
+    }
 }
 
 async fn test_upstream(State(state): State<AppState>) -> Response {
