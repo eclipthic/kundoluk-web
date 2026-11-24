@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: kundoluk-web
+    runtime: rust
+    plan: free
+    buildCommand: cargo build --release
+    startCommand: ./target/release/kundoluk-web
+    envVars:
+      - key: RUST_LOG
+        value: info
