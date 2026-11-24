@@ -1,6 +1,8 @@
-const API = '';
 const TOKEN_KEY = 'kundoluk_token';
 const TYPE_KEY = 'kundoluk_type';
+const API_BASE_KEY = 'kundoluk_api_base';
+
+function getApiBase(){ return (localStorage.getItem(API_BASE_KEY) || '').replace(/\/+$/, ''); }
 
 const state = {
   view: 'login',
@@ -36,7 +38,7 @@ async function api(path, opts){
   }
   return data;
 }
-function p(path){ return '/api/p/' + String(path).replace(/^\/+/,''); }
+function p(path){ return getApiBase() + '/api/p/' + String(path).replace(/^\/+/,''); }
 
 async function login(type){
   const pin = (document.getElementById('pin')||{}).value || '';
@@ -48,10 +50,10 @@ async function login(type){
     if (type==='parent') {
       const fcm = (crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now()+'-'+Math.random());
       body = { userName: pin.trim(), password: password, fcm_token: fcm };
-      url = '/api/login/parent';
+      url = getApiBase() + '/api/login/parent';
     } else {
       body = { userName: pin.trim(), password: password };
-      url = '/api/login/student';
+      url = getApiBase() + '/api/login/student';
     }
     const res = await api(url, { method:'POST', body: JSON.stringify(body) });
     const token = res && (res.actionResult && (res.actionResult.token || res.actionResult.Token)) || res.token || res.Token || res.accessToken;
@@ -143,6 +145,13 @@ function logout(){
   render();
 }
 
+function saveApiBase(){
+  const v = (document.getElementById('apibase')||{}).value || '';
+  const clean = v.trim().replace(/\/+$/, '');
+  if (clean) localStorage.setItem(API_BASE_KEY, clean);
+  else localStorage.removeItem(API_BASE_KEY);
+  alert(clean ? 'Адрес прокси сохранён' : 'Используется этот сайт');
+}
 function setLoginType(t){ state.loginType = t; render(); }
 async function doLogin(){ await login(state.loginType); }
 function switchTab(t){ state.tab = t; loadTabData(t); }
@@ -185,7 +194,12 @@ function renderLogin(){
         <input id="password" class="input" type="password" placeholder="Пароль">
       </div>
       <button class="btn btn-primary" onclick="doLogin()" ${state.loading?'disabled':''}>${state.loading?'Вход...':'Войти'}</button>
-      <p class="muted" style="margin-top:12px;font-size:12px;">Данные передаются на сервер Күндөлүк через этот сайт. Пароль на сервере не сохраняется.</p>
+      <div class="field" style="margin-top:16px;">
+        <label>Адрес сервера-прокси (если отличается от этого сайта)</label>
+        <input id="apibase" class="input" type="url" placeholder="https://ваш-прокси.onrender.com" value="${escapeHtml(getApiBase())}">
+        <button class="btn btn-small btn-secondary" style="margin-top:6px;" onclick="saveApiBase()">Сохранить адрес</button>
+      </div>
+      <p class="muted" style="margin-top:12px;font-size:12px;">Данные передаются на сервер Күндөлүк через выбранный прокси. Пароль на сервере не сохраняется.</p>
     </div>
   </div>`;
 }
