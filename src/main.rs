@@ -77,15 +77,24 @@ async fn health() -> &'static str {
 }
 
 async fn test_upstream(State(state): State<AppState>) -> Response {
-    let url = "https://kundoluk.edu.gov.kg/api/parent/student/list";
-    match state.client.get(url).send().await {
-        Ok(resp) => {
-            let status = resp.status().as_u16();
-            let body = resp.text().await.unwrap_or_default();
-            (StatusCode::OK, format!("upstream status={} body={}", status, &body[..body.len().min(300)])).into_response()
+    let mut out = String::new();
+    for url in [
+        "https://kundoluk.edu.gov.kg",
+        "https://kundoluk.edu.gov.kg/api",
+        "https://httpbin.org/get",
+    ] {
+        match state.client.get(url).send().await {
+            Ok(resp) => {
+                let status = resp.status().as_u16();
+                let body = resp.text().await.unwrap_or_default();
+                out.push_str(&format!("{} -> {} body={}\n", url, status, &body[..body.len().min(120)]));
+            }
+            Err(e) => {
+                out.push_str(&format!("{} -> ERR {:?}\n", url, e));
+            }
         }
-        Err(e) => (StatusCode::BAD_GATEWAY, format!("upstream error: {}", e)).into_response(),
     }
+    (StatusCode::OK, out).into_response()
 }
 
 async fn login_parent(State(state): State<AppState>, body: Bytes) -> Response {
